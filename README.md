@@ -52,14 +52,11 @@ class FaceVerificationEnv:
   def reset(self):
     
     if np.random.rand()<0.5:
-
-
       person_id = np.random.choice(self.person_ids)
       image1, image2 = np.random.choice(self.people[person_id], 2, replace=False)
       self.gt_label =0
     else:
       person1, person2 = np.random.choice(self.person_ids, 2, replace=False)
-
       image1 = np.random.choice(self.people[person1])
       image2 = np.random.choice(self.people[person2])
       self.gt_label =1
@@ -80,13 +77,11 @@ class FaceVerificationEnv:
   def step(self, action):
     img1, img2 = self.reset()
     processed_img = self.apply_action(img2, action)
-
     emb1 = get_embedding(img1)
     emb2 = get_embedding(img2)
 
     similarity = np.dot(emb1,emb2)/ (np.linalg.norm(emb1) * np.linalg.norm(emb2))
-
-    reward = 1.0 if (similarity>0.6 and self.gt_label ==0) or (similarity <0.4 and self.gt_label=1) else -0.5
+    reward = 1.0 if (similarity>0.6 and self.gt_label ==0) or (similarity <0.4 and self.gt_label==1) else -0.5
 
     return processed_img, reward, similarity
 
@@ -138,10 +133,10 @@ class DQNAgent:
 
   def replay(self, batch_size =32):
 
-    minibatch = random.sample(self.memory, batch_size)
+    minibatch = random.sample(self.memory, batch_size) # get data to train
     for state, action, reward, next_state, done in minibatch:
       target = reward
-      if not done:
+      if not done: # cần xem lại, vì hiện tạ done == false
         target = reward + self.gama * np.amax(self.model.predict(next_state[np.newaxis,...])[0])
       target_f = self.model.predict(state[np.newaxis,...])
       target_f[0][action] = target
@@ -167,26 +162,19 @@ for e in range(num_episodes):
   state = get_embedding(state[0])
   total_reward =0
   done = False
-
-  while not done:
-
-    action = agent.act(state)
-
-    next_state, reward, similarity = env.step(action)
-
-    next_state_emb = get_embedding(next_state)
-
-    agent.remember(state, action,reward, next_state_emb, done)
+# lưu ý có thể treo, vì done luôn = false
+  while not done: # replace by for loop
+    action = agent.act(state) # Q_Model dự đoán action dựa trên state  hiện tại 
+    next_state, reward, similarity = env.step(action) # select image pair -> apply action -> (next_state, reward)     
+    next_state = get_embedding(next_state) # next_state is image file with action -> embeding    
+    agent.remember(state, action,reward, next_state, done) # ghi vào buffer (done == false)
 
     total_reward += reward
+    state = next_state
 
-    state = next_state_emb
-
+    # chỉ huấn luyện khi dữ liệu trong buffer > batch_size
     if len(agent.memory) > batch_size:
-      agent.replay(batch_size)
-
-
-      
+      agent.replay(batch_size)      
   print(f"epoch: {e+1}, total reward: {total_reward} epsilon: {agent.epsilon:.2f}")
   
 
